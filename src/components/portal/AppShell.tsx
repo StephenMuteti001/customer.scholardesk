@@ -7,6 +7,7 @@ import {
   Inbox,
   LayoutDashboard,
   Library,
+  LockKeyhole,
   ScanSearch,
   Timer,
   LifeBuoy,
@@ -19,6 +20,10 @@ import { cn } from "@/lib/utils";
 import brandMark from "@/assets/scholardesk-monogram.png.asset.json";
 import { ThemeToggle } from "./theme";
 import { useSupportChat } from "./support-chat-context";
+import { usePortalSession } from "@/components/access/portal-session";
+import { authUrl } from "@/lib/auth-return";
+
+const PRIVATE_ROUTES = new Set(["/", "/requests", "/orders", "/profile"]);
 
 const NAV_GROUPS = [
   {
@@ -67,12 +72,12 @@ function useCurrent() {
   return { pathname, ...entry };
 }
 
-function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavList({ pathname, signedIn, onNavigate }: { pathname: string; signedIn: boolean; onNavigate?: () => void }) {
   return (
     <div className="space-y-6">
       {NAV_GROUPS.map((group) => (
         <div key={group.label}>
-          <p className="px-3 pb-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/45">
+          <p className="px-3 pb-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {group.label}
           </p>
           <nav className="space-y-1">
@@ -89,11 +94,12 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
                     "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[0.9rem] transition-colors",
                     active
                       ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
-                      : "font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                      : "font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
                   )}
                 >
                   <Icon className={cn("size-[1.05rem]", active ? "text-sidebar-primary" : "opacity-80")} />
                   {item.label}
+                  {!signedIn && PRIVATE_ROUTES.has(item.to) && <LockKeyhole className="ml-auto size-3.5 opacity-55" aria-label="Sign in required" />}
                 </Link>
               );
             })}
@@ -107,6 +113,8 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname, title, subtitle } = useCurrent();
   const { open } = useSupportChat();
+  const { access } = usePortalSession();
+  const signedIn = access === "allowed";
   const [menu, setMenu] = useState(false);
 
   useEffect(() => {
@@ -118,9 +126,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="sticky top-0 z-30 hidden h-screen w-[16.5rem] shrink-0 overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
         <Brand />
         <div className="px-3 pb-2 pt-3">
-          <NavList pathname={pathname} />
+          <NavList pathname={pathname} signedIn={signedIn} />
         </div>
-        <SupportCard onOpen={() => open()} />
+        <SupportCard signedIn={signedIn} onOpen={() => signedIn ? open() : window.location.assign(authUrl("login"))} />
       </aside>
 
       {menu && (
@@ -137,19 +145,20 @@ export function AppShell({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => setMenu(false)}
-                className="rounded-lg p-2 text-sidebar-foreground/70 hover:bg-sidebar-accent/60"
+                className="rounded-lg p-2 text-sidebar-foreground hover:bg-sidebar-accent/60"
                 aria-label="Close navigation"
               >
                 <X className="size-4" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-3 pb-4">
-              <NavList pathname={pathname} onNavigate={() => setMenu(false)} />
+              <NavList pathname={pathname} signedIn={signedIn} onNavigate={() => setMenu(false)} />
             </div>
-            <SupportCard
+              <SupportCard signedIn={signedIn}
               onOpen={() => {
                 setMenu(false);
-                open();
+                if (signedIn) open();
+                else window.location.assign(authUrl("login"));
               }}
             />
           </div>
@@ -197,17 +206,17 @@ function Brand() {
       <img src={brandMark.url} alt="ScholarDesk" className="size-9 object-contain" />
       <div className="leading-tight">
         <p className="font-display text-sm font-semibold">ScholarDesk</p>
-        <p className="text-[0.72rem] text-sidebar-foreground/55">Customer portal</p>
+        <p className="text-[0.72rem] text-muted-foreground">Customer portal</p>
       </div>
     </div>
   );
 }
 
-function SupportCard({ onOpen }: { onOpen: () => void }) {
+function SupportCard({ signedIn, onOpen }: { signedIn: boolean; onOpen: () => void }) {
   return (
     <div className="m-3 rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-4">
       {/* <p className="text-sm font-semibold">Need a hand?</p>
-      <p className="mt-1 text-[0.78rem] leading-relaxed text-sidebar-foreground/70">
+      <p className="mt-1 text-[0.78rem] leading-relaxed text-muted-foreground">
         Our support team handles every conversation. You never deal with an expert directly.
       </p> */}
       <button
@@ -215,7 +224,7 @@ function SupportCard({ onOpen }: { onOpen: () => void }) {
         onClick={onOpen}
         className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-3 py-2 text-xs font-semibold text-sidebar-primary-foreground transition-opacity hover:opacity-90"
       >
-        <LifeBuoy className="size-3.5" /> Message support
+        {signedIn ? <LifeBuoy className="size-3.5" /> : <LockKeyhole className="size-3.5" />} {signedIn ? "Message support" : "Sign in"}
       </button>
     </div>
   );

@@ -1,6 +1,6 @@
 /** Live API data layer for the customer portal. No mock or in-memory fallback is used. */
-import api from "./api";
-import type { ChatMessage, ChatThread, ExamMaterial, IntegrityReport, Order } from "./portal-types";
+import api, { API_BASE_URL } from "./api";
+import type { ChatMessage, ChatThread, Checkout, ExamMaterial, IntegrityReport, Order } from "./portal-types";
 
 type Envelope<T> = T | { data: T } | { data: { data: T } };
 
@@ -52,16 +52,45 @@ export interface QuoteRequestInput {
   deadline: string;
   instructions: string;
   fileNames: string[];
+  files?: File[];
 }
 
 export async function createQuoteRequest(input: QuoteRequestInput): Promise<Order> {
-  return post<Order>("/orders/quote-requests", input);
+  const form = new FormData();
+  Object.entries(input).forEach(([key, value]) => {
+    if (key === "files" || key === "fileNames") return;
+    form.append(key, String(value));
+  });
+  input.fileNames.forEach((name) => form.append("fileNames", name));
+  input.files?.forEach((file) => form.append("files", file));
+  return post<Order>("/orders/quote-requests", form);
 }
 export async function acceptQuote(orderId: string): Promise<Order> {
   return post<Order>(`/orders/${orderId}/quote/accept`);
 }
-export async function payOrder(orderId: string): Promise<Order> {
-  return post<Order>(`/orders/${orderId}/payments`);
+export interface OrderCheckout {
+  checkout: Checkout;
+  order: Order;
+}
+
+/**
+ * Opens a Paystack checkout for an accepted quotation. The order only
+ * becomes paid once Paystack confirms it, so the caller sends the
+ * customer to `checkout.authorizationUrl`.
+ */
+export async function payOrder(orderId: string): Promise<OrderCheckout> {
+  return post<OrderCheckout>(`/orders/${orderId}/payments`);
+}
+
+export interface PaymentResult {
+  checkout: Checkout;
+  sourceType: "request" | "material" | null;
+  requestId: string | null;
+  materialId: string | null;
+}
+
+export async function verifyPayment(reference: string): Promise<PaymentResult> {
+  return post<PaymentResult>(`/orders/payments/${encodeURIComponent(reference)}/verify`);
 }
 export async function cancelOrder(orderId: string, reason: string): Promise<Order> {
   return post<Order>(`/orders/${orderId}/cancel`, { reason });
@@ -108,7 +137,7 @@ export interface MaterialPage {
   facets?: { subjects?: string[] };
 }
 
-export async function fetchMaterials(filters: MaterialFilters = {}): Promise<MaterialPage> {
+export async function fetchMaterials(filters: MaterialFilters = {}, publicOnly = false): Promise<MaterialPage> {
   const params = new URLSearchParams();
   if (filters.q) params.set("q", filters.q);
   if (filters.subject) params.set("subject", filters.subject);
@@ -121,7 +150,7 @@ export async function fetchMaterials(filters: MaterialFilters = {}): Promise<Mat
   const payload = await api.get<ExamMaterial[] | {
     data: ExamMaterial[] | { data: ExamMaterial[] };
     meta?: { current_page?: number; last_page?: number; total?: number; has_more?: boolean; facets?: { subjects?: string[] } };
-  }>(`/exam-materials?${params.toString()}`);
+  }>(`${publicOnly ? "/public/exam-materials" : "/exam-materials"}?${params.toString()}`);
   if (Array.isArray(payload)) return { materials: payload, page: 1, hasMore: false, total: payload.length };
   const first = payload.data;
   if (Array.isArray(first)) {
@@ -136,8 +165,29 @@ export async function fetchMaterials(filters: MaterialFilters = {}): Promise<Mat
   }
   return { materials: first.data, page: filters.page ?? 1, hasMore: false };
 }
-export async function purchaseMaterial(materialId: string): Promise<ExamMaterial> {
-  return post<ExamMaterial>(`/exam-materials/${materialId}/purchase`);
+export interface MaterialCheckout {
+  checkout: Checkout;
+  material: ExamMaterial;
+}
+
+export async function purchaseMaterial(materialId: string): Promise<MaterialCheckout> {
+  return post<MaterialCheckout>(`/exam-materials/${materialId}/purchase`);
+}
+
+/** Streams an owned material through the authenticated download route. */
+export async function downloadMaterial(material: ExamMaterial): Promise<void> {
+  const path = material.downloadUrl ?? `/exam-materials/${material.id}/download`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+  if (!response.ok) throw new Error("Download failed");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${material.title}.${(material.format ?? "pdf").toLowerCase()}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 export async function fetchIntegrityReports(): Promise<IntegrityReport[]> {
@@ -145,6 +195,8 @@ export async function fetchIntegrityReports(): Promise<IntegrityReport[]> {
 }
 
 export interface IntegrityQuoteInput {
+  email: string;
+  file: File;
   fileName: string;
   wordCount: number;
   checks: { ai: boolean; plagiarism: boolean };
@@ -157,7 +209,7 @@ export async function requestIntegrityQuote(input: IntegrityQuoteInput): Promise
     .join(" and ");
   return createQuoteRequest({
     fullName: "Customer",
-    email: "",
+    email: input.email,
     title: `Integrity review: ${input.fileName}`,
     subject: "Academic integrity",
     assignmentType: "AI & plagiarism review",
@@ -166,5 +218,6 @@ export async function requestIntegrityQuote(input: IntegrityQuoteInput): Promise
     deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
     instructions: `Please quote for a support-managed ${requestedChecks}. The document supplied is ${input.fileName}.`,
     fileNames: [input.fileName],
+    files: [input.file],
   });
 }

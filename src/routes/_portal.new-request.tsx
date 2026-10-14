@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_portal/new-request")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-    ],
+     { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" }, { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" }],
   }),
   component: NewRequest,
 });

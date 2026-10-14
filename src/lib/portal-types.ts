@@ -184,6 +184,22 @@ export interface ExamMaterial {
   rating: number;
   downloads: number;
   owned: boolean;
+  /** Authenticated API path, present only once the material is owned. */
+  downloadUrl?: string | null;
+}
+
+/* ---------------- Checkout ---------------- */
+
+export interface Checkout {
+  reference: string;
+  status: "pending" | "paid" | "failed" | "abandoned";
+  authorizationUrl: string | null;
+  accessCode: string | null;
+  amount: number;
+  currency: string;
+  orderId: string;
+  paidAt: string | null;
+  createdAt: string | null;
 }
 
 /* ---------------- Integrity checks ---------------- */

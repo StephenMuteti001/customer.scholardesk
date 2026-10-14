@@ -16,7 +16,7 @@ export const API_BASE_URL =
 
 export const AUTH_PORTAL_URL =
   (import.meta.env["VITE_AUTH_PORTAL_URL"] as string | undefined) ??
-  "https://scholardesk.pro";
+  "https://auth.scholardesk.pro";
 
 function csrfToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -31,8 +31,6 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-
-let isRedirecting = false;
 
 export async function apiRequest<T>(
   path: string,
@@ -55,11 +53,8 @@ export async function apiRequest<T>(
   });
 
   if (response.status === 401 || response.status === 403) {
-    if (!isRedirecting && typeof window !== "undefined") {
-      isRedirecting = true;
-      window.location.replace(AUTH_PORTAL_URL);
-    }
-    throw new ApiError(response.status, "Not authenticated");
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(response.status === 401 ? "scholardesk:auth-required" : "scholardesk:access-denied"));
+    throw new ApiError(response.status, response.status === 401 ? "Sign in required" : "Access restricted");
   }
 
   if (!response.ok) {

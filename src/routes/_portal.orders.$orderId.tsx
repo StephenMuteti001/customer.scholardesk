@@ -32,16 +32,16 @@ import { useSupportChat } from "@/components/portal/support-chat-context";
 import { DetailPageSkeleton } from "@/components/portal/PageSkeletons";
 
 export const Route = createFileRoute("/_portal/orders/$orderId")({
-  head: () => ({
+  head: ({ params }) => ({
     meta: [
-      { title: "Order detail | ScholarDesk Customer Portal" },
+      { title: `Order ${params.orderId} | ScholarDesk Customer Portal` },
       {
         name: "description",
         content: "Track your order stage, quote, payment, submissions and revision requests.",
       },
-      { property: "og:title", content: "Order detail | ScholarDesk Customer Portal" },
+      { property: "og:title", content: `Order ${params.orderId} | ScholarDesk Customer Portal` },
       { property: "og:description", content: "Order stage, quote, payment, submissions and revisions." },
-    ],
+     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }, { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" }, { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" }],
   }),
   component: OrderDetail,
 });
@@ -76,10 +76,17 @@ function OrderDetail() {
   });
   const pay = useMutation({
     mutationFn: () => payOrder(orderId),
-    onSuccess: () => {
-      refresh();
-      toast.success("Payment received", { description: "We're matching your specialist now." });
+    // Paystack hosts the payment page; the order is settled server-side
+    // and confirmed on /payments/callback when the customer returns.
+    onSuccess: ({ checkout }) => {
+      const url = checkout.authorizationUrl;
+      if (!url) {
+        toast.error("We could not open the payment page. Please try again.");
+        return;
+      }
+      window.location.assign(url);
     },
+    onError: () => toast.error("We could not open the payment page. Please try again."),
   });
   const cancel = useMutation({
     mutationFn: () => cancelOrder(orderId, "Cancelled by client from the portal"),

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_portal/requests")({
       },
       { property: "og:title", content: "Open requests | ScholarDesk Customer Portal" },
       { property: "og:description", content: "Briefs waiting on a quote from the ScholarDesk team." },
-    ],
+     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }, { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" }, { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" }],
   }),
   component: RequestsPage,
 });
@@ -37,10 +37,15 @@ function RequestsPage() {
 
   const pay = useMutation({
     mutationFn: (orderId: string) => payOrder(orderId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Payment received", { description: "We're matching a specialist for you now." });
+    onSuccess: ({ checkout }) => {
+      const url = checkout.authorizationUrl;
+      if (!url) {
+        toast.error("We could not open the payment page. Please try again.");
+        return;
+      }
+      window.location.assign(url);
     },
+    onError: () => toast.error("We could not open the payment page. Please try again."),
   });
 
   const requests = (data ?? []).filter((o) => OPEN_STAGES.includes(o.stage));

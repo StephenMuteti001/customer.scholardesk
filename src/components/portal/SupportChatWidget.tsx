@@ -7,6 +7,7 @@ import { ChatStatusBadge } from "./StatusBadge";
 import { useSupportChat } from "./support-chat-context";
 import { fetchMessages, fetchThreads, sendMessage, startThread } from "@/lib/portal-data";
 import type { ChatStatus } from "@/lib/portal-types";
+import { usePortalSession } from "@/components/access/portal-session";
 
 const FILTERS: { key: "active" | ChatStatus; label: string }[] = [
   { key: "active", label: "Active" },
@@ -25,6 +26,7 @@ function timeAgo(iso: string) {
 }
 
 export function SupportChatWidget() {
+  const { access } = usePortalSession();
   const { isOpen, open, close, activeChatId, setActiveChatId } = useSupportChat();
   const [filter, setFilter] = useState<"active" | ChatStatus>("active");
   const queryClient = useQueryClient();
@@ -32,7 +34,7 @@ export function SupportChatWidget() {
   const threadsQuery = useQuery({
     queryKey: ["support-threads"],
     queryFn: fetchThreads,
-    enabled: isOpen,
+    enabled: isOpen && access === "allowed",
   });
 
   const unread = useMemo(
@@ -56,6 +58,7 @@ export function SupportChatWidget() {
     },
   });
 
+  if (access !== "allowed") return null;
   return (
     <>
       <button

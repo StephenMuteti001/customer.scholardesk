@@ -16,6 +16,8 @@ import { fetchIntegrityReports, requestIntegrityQuote } from "@/lib/portal-data"
 import type { IntegrityReport } from "@/lib/portal-types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSupportChat } from "@/components/portal/support-chat-context";
+import { usePortalSession } from "@/components/access/portal-session";
+import { authUrl, clearRequestDraft, readRequestDraft, saveRequestDraft } from "@/lib/auth-return";
 
 export const Route = createFileRoute("/_portal/integrity")({
   head: () => ({
@@ -33,8 +35,8 @@ export const Route = createFileRoute("/_portal/integrity")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:image", content: "https://id-preview--839df7bd-e22a-4d73-94bf-d47003f523e8.lovable.app/__l5e/assets-v1/6e0c32a5-d6b8-47e2-8d01-b323453c54b7/scholardesk-og-image.png" },
-      { name: "twitter:image", content: "https://id-preview--839df7bd-e22a-4d73-94bf-d47003f523e8.lovable.app/__l5e/assets-v1/6e0c32a5-d6b8-47e2-8d01-b323453c54b7/scholardesk-og-image.png" },
+      { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" },
+      { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" },
     ],
   }),
   component: IntegrityPage,
@@ -42,19 +44,22 @@ export const Route = createFileRoute("/_portal/integrity")({
 
 function IntegrityPage() {
   const { open } = useSupportChat();
+  const { access } = usePortalSession();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<{ name: string; words: number } | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [email, setEmail] = useState(() => String(readRequestDraft("integrity")?.email ?? ""));
   const [dragging, setDragging] = useState(false);
   const [checks, setChecks] = useState({ ai: true, plagiarism: true });
 
-  const { data, isLoading } = useQuery({ queryKey: ["integrity-reports"], queryFn: fetchIntegrityReports });
+  const { data, isLoading } = useQuery({ queryKey: ["integrity-reports"], queryFn: fetchIntegrityReports, enabled: access === "allowed" });
 
   const quoteRequest = useMutation({
     mutationFn: requestIntegrityQuote,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       setFile(null);
+      clearRequestDraft("integrity");
       toast.success("Quote request sent", {
         description: "Support will review the document and discuss the budget with you before any checks begin.",
       });
@@ -65,7 +70,7 @@ function IntegrityPage() {
   const pick = (list: FileList | null) => {
     const first = list?.[0];
     if (!first) return;
-    setFile({ name: first.name, words: Math.max(250, Math.round(first.size / 6)) });
+    setFile(first);
   };
 
   const start = () => {
@@ -77,7 +82,13 @@ function IntegrityPage() {
       toast.error("Select at least one report type");
       return;
     }
-    quoteRequest.mutate({ fileName: file.name, wordCount: file.words, checks });
+    if (!email.trim()) { toast.error("Add an email address first"); return; }
+    if (access !== "allowed") {
+      saveRequestDraft("integrity", { email, ai: checks.ai, plagiarism: checks.plagiarism, hadFiles: true });
+      window.location.assign(authUrl("login"));
+      return;
+    }
+    quoteRequest.mutate({ email: email.trim(), file, fileName: file.name, wordCount: Math.max(250, Math.round(file.size / 6)), checks });
   };
 
   return (
@@ -97,6 +108,8 @@ function IntegrityPage() {
         <section className="surface-panel p-6">
           <h2 className="font-display text-base font-semibold">Upload a document</h2>
           <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX or TXT, up to 25MB.</p>
+          <label className="mt-5 block text-sm font-semibold" htmlFor="integrity-email">Delivery email</label>
+          <input id="integrity-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-2 h-11 w-full rounded-xl border border-input bg-card px-3.5 text-sm outline-none focus:ring-2 focus:ring-ring/40" />
 
           <div
             onDragOver={(e) => {
@@ -138,7 +151,7 @@ function IntegrityPage() {
               <FileText className="size-4 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{file.name}</p>
-                <p className="text-[0.7rem] text-muted-foreground">about {file.words.toLocaleString()} words</p>
+                <p className="text-[0.7rem] text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
               </div>
               <button
                 type="button"
@@ -178,14 +191,14 @@ function IntegrityPage() {
             className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {quoteRequest.isPending ? <span className="size-4 animate-pulse rounded-full bg-primary-foreground/50" /> : <ScanSearch className="size-4" />}
-            {quoteRequest.isPending ? "Sending request" : "Request a quotation"}
+            {quoteRequest.isPending ? "Sending request" : access === "allowed" ? "Request a quotation" : "Sign in and continue"}
           </button>
 
           <p className="mt-3 flex items-center gap-2 text-[0.72rem] text-muted-foreground">
             <ShieldCheck className="size-3.5 text-success" />
             No check begins until you approve support's quotation.
           </p>
-          <button type="button" onClick={() => open()} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
+          <button type="button" onClick={() => access === "allowed" ? open() : window.location.assign(authUrl("login"))} className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
             <MessagesSquare className="size-3.5" /> Discuss the budget with support
           </button>
         </section>
@@ -197,7 +210,9 @@ function IntegrityPage() {
           </p>
 
           <div className="mt-4 space-y-3">
-            {isLoading ? (
+            {access !== "allowed" ? (
+              <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Sign in to see and track your reports.</p>
+            ) : isLoading ? (
               [0, 1, 2].map((i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)
             ) : (data ?? []).length === 0 ? (
               <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

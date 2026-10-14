@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CloudUpload, FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createQuoteRequest } from "@/lib/portal-data";
+import { usePortalSession } from "@/components/access/portal-session";
+import { authUrl, clearRequestDraft, readRequestDraft, saveRequestDraft } from "@/lib/auth-return";
 
 const SUBJECTS = [
   "Business & Management",
@@ -60,13 +62,17 @@ export type RequestVariant = "assignment" | "class" | "exam";
 export function RequestForm({ variant, compact }: { variant: RequestVariant; compact?: boolean }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { access } = usePortalSession();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<string[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
+  const draftKey = `quote:${variant}`;
+  const [files, setFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
 
   const submit = useMutation({
     mutationFn: createQuoteRequest,
     onSuccess: (order) => {
+      clearRequestDraft(draftKey);
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Your brief has been received", {
         description: "A support specialist is preparing your quotation, usually within 30 minutes.",
@@ -76,9 +82,28 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
     onError: () => toast.error("We could not submit that request. Please try again."),
   });
 
+  useEffect(() => {
+    const draft = readRequestDraft(draftKey);
+    const form = formRef.current;
+    if (!draft || !form) return;
+    Object.entries(draft).forEach(([name, value]) => {
+      const field = form.elements.namedItem(name);
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) field.value = String(value);
+    });
+    if (draft.hadFiles === true) toast.info("Your brief was restored. Please select your attachments again before submitting.");
+  }, [draftKey]);
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    if (access !== "allowed") {
+      const values: Record<string, string | boolean> = {};
+      form.forEach((value, key) => { if (typeof value === "string") values[key] = value; });
+      values.hadFiles = files.length > 0;
+      saveRequestDraft(draftKey, values);
+      window.location.assign(authUrl("login"));
+      return;
+    }
     const isClass = variant === "class";
     const isExam = variant === "exam";
 
@@ -114,12 +139,14 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
       citationStyle: String(form.get("citationStyle") ?? "Not required"),
       deadline: String(form.get("deadline") ?? new Date().toISOString()),
       instructions,
-      fileNames: files,
+      fileNames: files.map((file) => file.name),
+      files,
     });
   };
 
   return (
     <form
+      ref={formRef}
       onSubmit={onSubmit}
       className={cn("surface-panel space-y-6", compact ? "p-5 sm:p-6" : "p-6 sm:p-8")}
     >
@@ -202,7 +229,7 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files).map((f) => f.name)]);
+            setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
           }}
           onClick={() => inputRef.current?.click()}
           className={cn(
@@ -217,19 +244,20 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
             ref={inputRef}
             type="file"
             multiple
+            accept=".pdf,.doc,.docx,.txt"
             className="hidden"
-            onChange={(e) => setFiles((prev) => [...prev, ...Array.from(e.target.files ?? []).map((f) => f.name)])}
+            onChange={(e) => setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])])}
           />
         </div>
         {files.length > 0 && (
           <ul className="mt-3 space-y-2">
-            {files.map((name, i) => (
-              <li key={`${name}-${i}`} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
+            {files.map((file, i) => (
+              <li key={`${file.name}-${i}`} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
                 <FileText className="size-4 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
                 <button
                   type="button"
-                  aria-label={`Remove ${name}`}
+                  aria-label={`Remove ${file.name}`}
                   onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
                   className="text-muted-foreground transition-colors hover:text-destructive"
                 >
@@ -267,7 +295,7 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
           disabled={submit.isPending}
           className="rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
         >
-          {submit.isPending ? "Sending your brief" : "Get my quotation"}
+          {submit.isPending ? "Sending your brief" : access === "allowed" ? "Get my quotation" : "Sign in and continue"}
         </button>
         <p className="text-xs text-muted-foreground">
           We reply with a quotation and delivery plan, usually within 30 minutes.

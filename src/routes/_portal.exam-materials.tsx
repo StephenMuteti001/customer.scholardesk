@@ -11,7 +11,7 @@ import {
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchMaterials, purchaseMaterial } from "@/lib/portal-data";
+import { downloadMaterial, fetchMaterials, purchaseMaterial } from "@/lib/portal-data";
 import {
   MATERIAL_CATEGORIES,
   MATERIAL_LEVELS,
@@ -19,6 +19,8 @@ import {
 } from "@/lib/portal-types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { usePortalSession } from "@/components/access/portal-session";
+import { authUrl } from "@/lib/auth-return";
 
 export const Route = createFileRoute("/_portal/exam-materials")({
   head: () => ({
@@ -36,7 +38,7 @@ export const Route = createFileRoute("/_portal/exam-materials")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-    ],
+     { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" }, { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" }],
   }),
   component: ExamMaterials,
 });
@@ -45,6 +47,7 @@ type SortKey = "popular" | "newest" | "price_low" | "rating";
 
 function ExamMaterials() {
   const queryClient = useQueryClient();
+  const { access } = usePortalSession();
   const [term, setTerm] = useState("");
   const [debouncedTerm, setDebouncedTerm] = useState("");
   const [subject, setSubject] = useState("All subjects");
@@ -65,8 +68,8 @@ function ExamMaterials() {
     sort,
   };
   const materialsQuery = useInfiniteQuery({
-    queryKey: ["exam-materials", filters],
-    queryFn: ({ pageParam }) => fetchMaterials({ ...filters, page: pageParam, perPage: 12 }),
+    queryKey: ["exam-materials", access === "allowed" ? "customer" : "public", filters],
+    queryFn: ({ pageParam }) => fetchMaterials({ ...filters, page: pageParam, perPage: 12 }, access !== "allowed"),
     initialPageParam: 1,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.page + 1 : undefined,
   });
@@ -74,14 +77,25 @@ function ExamMaterials() {
   const firstPage = materialsQuery.data?.pages[0];
 
   const buy = useMutation({
-    mutationFn: purchaseMaterial,
-    onSuccess: (material) => {
-      queryClient.invalidateQueries({ queryKey: ["exam-materials"] });
-      toast.success("Payment confirmed", {
-        description: `${material.title} is now available in your library.`,
-      });
+    mutationFn: (materialId: string) => {
+      if (access !== "allowed") {
+        window.location.assign(authUrl("login"));
+        return Promise.reject(new Error("Sign in required"));
+      }
+      return purchaseMaterial(materialId);
     },
-    onError: () => toast.error("We could not complete that payment. Please try again."),
+    onSuccess: ({ checkout }) => {
+      queryClient.invalidateQueries({ queryKey: ["exam-materials"] });
+      const url = checkout.authorizationUrl;
+      if (!url) {
+        toast.error("We could not open the payment page. Please try again.");
+        return;
+      }
+      window.location.assign(url);
+    },
+    onError: (error) => {
+      if (error.message !== "Sign in required") toast.error("We could not complete that payment. Please try again.");
+    },
   });
 
   const subjects = useMemo(
@@ -243,12 +257,17 @@ function MaterialCard({
           <p className="text-[0.7rem] text-muted-foreground">{material.downloads.toLocaleString()} downloads</p>
         </div>
         {material.owned ? (
-          <a
-            href={material.id === "" ? "#" : "#"}
+          <button
+            type="button"
+            onClick={() =>
+              void downloadMaterial(material).catch(() =>
+                toast.error("We could not download that file. Please try again."),
+              )
+            }
             className="inline-flex items-center gap-2 rounded-lg border border-success/40 bg-success/12 px-4 py-2 text-xs font-semibold text-success transition-opacity hover:opacity-90"
           >
             <ArrowDownToLine className="size-3.5" /> Download
-          </a>
+          </button>
         ) : (
           <button
             type="button"

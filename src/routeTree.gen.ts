@@ -22,6 +22,7 @@ import { Route as PortalProfileRouteImport } from './routes/_portal.profile'
 import { Route as PortalRequestsRouteImport } from './routes/_portal.requests'
 import { Route as PortalOrdersIndexRouteImport } from './routes/_portal.orders.index'
 import { Route as PortalOrdersOrderIdRouteImport } from './routes/_portal.orders.$orderId'
+import { Route as PortalPaymentsCallbackRouteImport } from './routes/_portal.payments.callback'
 
 const PortalRoute = PortalRouteImport.update({
   id: '/_portal',
@@ -87,6 +88,11 @@ const PortalOrdersOrderIdRoute = PortalOrdersOrderIdRouteImport.update({
   path: '/$orderId',
   getParentRoute: () => PortalOrdersRoute,
 } as any)
+const PortalPaymentsCallbackRoute = PortalPaymentsCallbackRouteImport.update({
+  id: '/payments/callback',
+  path: '/payments/callback',
+  getParentRoute: () => PortalRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof PortalIndexRoute
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof PortalProfileRoute
   '/requests': typeof PortalRequestsRoute
   '/orders/$orderId': typeof PortalOrdersOrderIdRoute
+  '/payments/callback': typeof PortalPaymentsCallbackRoute
   '/orders/': typeof PortalOrdersIndexRoute
 }
 export interface FileRoutesByTo {
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/requests': typeof PortalRequestsRoute
   '/': typeof PortalIndexRoute
   '/orders/$orderId': typeof PortalOrdersOrderIdRoute
+  '/payments/callback': typeof PortalPaymentsCallbackRoute
   '/orders': typeof PortalOrdersIndexRoute
 }
 export interface FileRoutesById {
@@ -129,6 +137,7 @@ export interface FileRoutesById {
   '/_portal/requests': typeof PortalRequestsRoute
   '/_portal/': typeof PortalIndexRoute
   '/_portal/orders/$orderId': typeof PortalOrdersOrderIdRoute
+  '/_portal/payments/callback': typeof PortalPaymentsCallbackRoute
   '/_portal/orders/': typeof PortalOrdersIndexRoute
 }
 export interface FileRouteTypes {
@@ -145,6 +154,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/requests'
     | '/orders/$orderId'
+    | '/payments/callback'
     | '/orders/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/requests'
     | '/'
     | '/orders/$orderId'
+    | '/payments/callback'
     | '/orders'
   id:
     | '__root__'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/_portal/requests'
     | '/_portal/'
     | '/_portal/orders/$orderId'
+    | '/_portal/payments/callback'
     | '/_portal/orders/'
   fileRoutesById: FileRoutesById
 }
@@ -273,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalOrdersOrderIdRouteImport
       parentRoute: typeof PortalOrdersRoute
     }
+    '/_portal/payments/callback': {
+      id: '/_portal/payments/callback'
+      path: '/payments/callback'
+      fullPath: '/payments/callback'
+      preLoaderRoute: typeof PortalPaymentsCallbackRouteImport
+      parentRoute: typeof PortalRoute
+    }
   }
 }
 
@@ -301,6 +320,7 @@ interface PortalRouteChildren {
   PortalProfileRoute: typeof PortalProfileRoute
   PortalRequestsRoute: typeof PortalRequestsRoute
   PortalIndexRoute: typeof PortalIndexRoute
+  PortalPaymentsCallbackRoute: typeof PortalPaymentsCallbackRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
@@ -314,6 +334,7 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalProfileRoute: PortalProfileRoute,
   PortalRequestsRoute: PortalRequestsRoute,
   PortalIndexRoute: PortalIndexRoute,
+  PortalPaymentsCallbackRoute: PortalPaymentsCallbackRoute,
 }
 
 const PortalRouteWithChildren =
@@ -325,3 +346,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_portal/profile")({
       { name: "description", content: "Your contact details, billing preferences and account protections." },
       { property: "og:title", content: "Profile | ScholarDesk Customer Portal" },
       { property: "og:description", content: "Contact details, billing preferences and protections." },
-    ],
+     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }, { property: "og:image", content: "https://scholardesk.pro/brand/og-image.png" }, { name: "twitter:image", content: "https://scholardesk.pro/brand/og-image.png" }],
   }),
   component: ProfilePage,
 });
