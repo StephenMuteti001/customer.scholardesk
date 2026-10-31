@@ -48,7 +48,7 @@ function IntegrityPage() {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [email, setEmail] = useState(() => String(readRequestDraft("integrity")?.email ?? ""));
+  const [email, setEmail] = useState(() => String(readRequestDraft("integrity")?.["email"] ?? ""));
   const [dragging, setDragging] = useState(false);
   const [checks, setChecks] = useState({ ai: true, plagiarism: true });
 

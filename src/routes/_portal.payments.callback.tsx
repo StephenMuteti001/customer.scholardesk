@@ -9,8 +9,8 @@ type Search = { reference?: string; trxref?: string };
 
 export const Route = createFileRoute("/_portal/payments/callback")({
   validateSearch: (search: Record<string, unknown>): Search => ({
-    reference: typeof search["reference"] === "string" ? search["reference"] : undefined,
-    trxref: typeof search["trxref"] === "string" ? search["trxref"] : undefined,
+    ...(typeof search["reference"] === "string" ? { reference: search["reference"] } : {}),
+    ...(typeof search["trxref"] === "string" ? { trxref: search["trxref"] } : {}),
   }),
   head: () => ({
     meta: [

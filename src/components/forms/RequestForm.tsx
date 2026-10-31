@@ -90,7 +90,7 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
       const field = form.elements.namedItem(name);
       if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) field.value = String(value);
     });
-    if (draft.hadFiles === true) toast.info("Your brief was restored. Please select your attachments again before submitting.");
+    if (draft["hadFiles"] === true) toast.info("Your brief was restored. Please select your attachments again before submitting.");
   }, [draftKey]);
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -99,7 +99,7 @@ export function RequestForm({ variant, compact }: { variant: RequestVariant; com
     if (access !== "allowed") {
       const values: Record<string, string | boolean> = {};
       form.forEach((value, key) => { if (typeof value === "string") values[key] = value; });
-      values.hadFiles = files.length > 0;
+      values["hadFiles"] = files.length > 0;
       saveRequestDraft(draftKey, values);
       window.location.assign(authUrl("login"));
       return;

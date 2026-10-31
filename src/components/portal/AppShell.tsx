@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import brandMark from "@/assets/scholardesk-monogram.png.asset.json";
 import { ThemeToggle } from "./theme";
 import { useSupportChat } from "./support-chat-context";
 import { usePortalSession } from "@/components/access/portal-session";
@@ -203,7 +202,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 function Brand() {
   return (
     <div className="flex items-center gap-3 px-5 py-5">
-      <img src={brandMark.url} alt="ScholarDesk" className="size-9 object-contain" />
+      <img src="/scholardesk-mark.png" alt="ScholarDesk" className="size-9 object-contain" />
       <div className="leading-tight">
         <p className="font-display text-sm font-semibold">ScholarDesk</p>
         <p className="text-[0.72rem] text-muted-foreground">Customer portal</p>

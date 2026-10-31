@@ -1,0 +1,14 @@
+{
+  "source": "code archive (scholardesk-customer.zip)",
+  "capabilities": [
+    { "capability": "code", "source": "src/ + public/ in archive", "outcome": "imported into project", "status": "verified" },
+    { "capability": "schema", "source": "none in archive", "outcome": "no local database; portal calls external API", "status": "not_applicable" },
+    { "capability": "records", "source": "none in archive", "outcome": "data lives in the existing ScholarDesk backend, not local", "status": "not_applicable" },
+    { "capability": "auth", "source": "external auth portal auth.scholardesk.pro (cookie sessions)", "outcome": "preserved as-is", "status": "verified" },
+    { "capability": "external API", "source": "VITE_API_URL (default https://api.academichubpro.com/api/v1)", "outcome": "preserved as-is", "status": "verified" },
+    { "capability": "payments", "source": "Paystack checkout + callback route", "outcome": "preserved as-is", "status": "verified" },
+    { "capability": "public endpoints/webhooks/schedules", "source": "none detected", "outcome": "none", "status": "not_applicable" },
+    { "capability": "bugfix: route conflict /exam-materials", "source": "exam-materials.tsx duplicated _portal.exam-materials.tsx", "outcome": "duplicate file removed, portal version kept", "status": "verified" },
+    { "capability": "bugfix: usePortalSession outside provider", "source": "SupportChatProvider mounted on root route", "outcome": "moved inside PortalSessionProvider in _portal layout", "status": "verified" }
+  ]
+}
