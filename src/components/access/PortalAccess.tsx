@@ -1,36 +1,51 @@
-import type { ReactNode } from "react";
-import { LockKeyhole } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, type ReactNode } from "react";
+import { API_BASE_URL } from "@/lib/api";
 import { authUrl } from "@/lib/auth-return";
+import { AccessCard } from "./AccessCard";
 import { usePortalSession } from "./portal-session";
 
 /** The API owns the session; no browser storage or UI state can grant access. */
 export function PortalAccess({ children }: { children: ReactNode }) {
-  const { access, checkAccess } = usePortalSession();
+  const { access, checkAccess, email } = usePortalSession();
+  const [switching, setSwitching] = useState(false);
 
   if (access === "allowed") return <>{children}</>;
-  if (access === "checking") return <div aria-live="polite" className="flex min-h-[28rem] items-center justify-center text-muted-foreground">Checking access…</div>;
 
-  const title = access === "sign-in" ? "Sign in required" : access === "wrong-account" ? "Access restricted" : "Unable to check access";
-  const detail = access === "sign-in"
-    ? "Please sign in to your ScholarDesk customer account to open this page."
-    : access === "wrong-account"
-      ? "This page requires a ScholarDesk customer account. If you use another account, switch accounts and try again."
-      : "We could not verify your account right now. Check your connection and try again.";
+  const switchAccount = async () => {
+    setSwitching(true);
+    const match = document.cookie.match(/(?:^|;\s*)csrf_access_token=([^;]+)/);
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: match?.[1] ? { "X-CSRF-TOKEN": decodeURIComponent(match[1]) } : {},
+      });
+    } catch {
+      /* signing in again replaces the session */
+    }
+    window.location.assign(authUrl("login"));
+  };
 
   return (
-    <div className="flex min-h-[28rem] items-center justify-center px-2 py-10">
-      <section role="alert" aria-live="assertive" className="w-full max-w-md border-primary pt-8 text-foreground">
-        <LockKeyhole aria-hidden="true" className="mb-5 size-9 text-primary" />
-        <p className="mb-2 text-sm font-semibold text-primary">ScholarDesk · Customer portal</p>
-        <h1 className="font-display text-2xl font-semibold">{title}</h1>
-        <p className="mt-3 text-sm leading-7 text-muted-foreground">{detail}</p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          {access !== "unavailable" && <Button asChild><a href={authUrl("login")}>Sign in</a></Button>}
-          {access === "sign-in" && <Button variant="outline" asChild><a href={authUrl("register")}>Create account</a></Button>}
-          <Button variant="outline" onClick={() => void checkAccess()}>Try again</Button>
-        </div>
-      </section>
-    </div>
+    <AccessCard
+      state={access}
+      portalLabel="Customer portal"
+      accountNoun="customer"
+      markSrc="/favicon-192.png"
+      signInHref={authUrl("login")}
+      register={{ href: authUrl("register"), label: "Create a free account" }}
+      signedInAs={email}
+      onRetry={() => void checkAccess()}
+      onSwitchAccount={() => void switchAccount()}
+      switching={switching}
+      footer={
+        <>
+          Need help? Email{" "}
+          <a className="font-semibold text-primary hover:underline" href="mailto:support@scholardesk.pro">
+            support@scholardesk.pro
+          </a>
+        </>
+      }
+    />
   );
 }

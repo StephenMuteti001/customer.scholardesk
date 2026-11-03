@@ -2,11 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { API_BASE_URL } from "@/lib/api";
 
 export type PortalAccessState = "checking" | "allowed" | "sign-in" | "wrong-account" | "unavailable";
-interface PortalSessionValue { access: PortalAccessState; checkAccess: () => Promise<void>; }
+interface PortalSessionValue { access: PortalAccessState; email: string | null; checkAccess: () => Promise<void>; }
 const PortalSessionContext = createContext<PortalSessionValue | null>(null);
 
 export function PortalSessionProvider({ children }: { children: ReactNode }) {
   const [access, setAccess] = useState<PortalAccessState>("checking");
+  const [email, setEmail] = useState<string | null>(null);
   const checkAccess = useCallback(async () => {
     setAccess("checking");
     try {
@@ -14,7 +15,8 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       if (response.status === 401) { setAccess("sign-in"); return; }
       if (response.status === 403) { setAccess("wrong-account"); return; }
       if (!response.ok) { setAccess("unavailable"); return; }
-      const payload = await response.json() as { user?: { role?: string } };
+      const payload = await response.json() as { user?: { role?: string; email?: string } };
+      setEmail(payload.user?.email ?? null);
       setAccess(payload.user?.role === "customer" ? "allowed" : "wrong-account");
     } catch { setAccess("unavailable"); }
   }, []);
@@ -30,7 +32,7 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("scholardesk:access-denied", onAccessDenied);
     };
   }, [checkAccess]);
-  const value = useMemo(() => ({ access, checkAccess }), [access, checkAccess]);
+  const value = useMemo(() => ({ access, email, checkAccess }), [access, email, checkAccess]);
   return <PortalSessionContext.Provider value={value}>{children}</PortalSessionContext.Provider>;
 }
 
